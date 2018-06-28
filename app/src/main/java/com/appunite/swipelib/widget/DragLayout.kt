@@ -27,7 +27,8 @@ class DragLayout constructor(
     private var secondaryView: View? = null
     private var quadraryView: View? = null
 
-    private var rectOpenFromRight = Rect()
+    private var rectOpenLeftEdge = Rect()
+    private var rectOpenRightEdge = Rect()
     private var rectClose = Rect()
 
     init {
@@ -139,17 +140,24 @@ class DragLayout constructor(
                 this@DragLayout.forEachIndexed { child, _ -> child.layoutView(right - child.getMeasuredMarginsWidth() - paddingRight - left, paddingTop) }
             }
             DragEdge.Side -> {
+                getChildAt(0).layoutView(paddingLeft, paddingTop)
+                getChildAt(1).layoutView(paddingLeft, paddingTop)
+                getChildAt(2).layoutView(right - getChildAt(2).getMeasuredMarginsWidth() - paddingRight - left, paddingTop)
             }
         }
-        setupRects()
+        storePositionsInRects()
     }
 
-    private fun setupRects() {
+    private fun storePositionsInRects() {
         rectClose = Rect(notNull(mainView).left, notNull(mainView).top, notNull(mainView).right, notNull(mainView).bottom)
-        rectOpenFromRight = when (dragEdge) {
-            DragEdge.Left -> Rect(rectClose.left + notNull(secondaryView).width, rectClose.top, rectClose.right + notNull(secondaryView).width, rectClose.bottom)
-            DragEdge.Right -> Rect(rectClose.left - notNull(secondaryView).width, rectClose.top, rectClose.right - notNull(secondaryView).width, rectClose.bottom)
-            DragEdge.Side -> Rect(rectClose.left - notNull(secondaryView).width, rectClose.top, rectClose.right - notNull(secondaryView).width, rectClose.bottom)
+        rectOpenLeftEdge = Rect(rectClose.left + notNull(secondaryView).width, rectClose.top, rectClose.right + notNull(secondaryView).width, rectClose.bottom)
+        rectOpenRightEdge = when (dragEdge) {
+            DragEdge.Side -> {
+                Rect(rectClose.left - notNull(quadraryView).width, rectClose.top, rectClose.right - notNull(quadraryView).width, rectClose.bottom)
+            }
+            else -> {
+                Rect(rectClose.left - notNull(secondaryView).width, rectClose.top, rectClose.right - notNull(secondaryView).width, rectClose.bottom)
+            }
         }
     }
 
@@ -162,14 +170,13 @@ class DragLayout constructor(
             val leftBound = when (dragEdge) {
                 DragEdge.Left -> 0
                 DragEdge.Right -> -notNull(secondaryView).width
-                DragEdge.Side -> 0
+                DragEdge.Side -> -notNull(secondaryView).width
             }
             val rightBound = when (dragEdge) {
                 DragEdge.Left -> notNull(secondaryView).width
                 DragEdge.Right -> 0
-                DragEdge.Side -> 0
+                DragEdge.Side -> notNull(quadraryView).width
             }
-
             return Math.min(Math.max(left, leftBound), rightBound)
         }
 
@@ -186,11 +193,11 @@ class DragLayout constructor(
             when (dragEdge) {
                 DragEdge.Right -> {
                     when {
-                        velocityRightExceeded -> open(true)
-                        velocityLeftExceeded -> close(true)
+                        velocityRightExceeded -> close(true)
+                        velocityLeftExceeded -> open(true)
                         else -> when {
-                            notNull(mainView).right < getHalfwayRightViewPosition() -> open(true, 0)
-                            else -> close(true, 0)
+                            notNull(mainView).right < getHalfwayVerticalViewPosition() -> open(true)
+                            else -> close(true)
                         }
                     }
                 }
@@ -199,8 +206,8 @@ class DragLayout constructor(
                         velocityRightExceeded -> open(true)
                         velocityLeftExceeded -> close(true)
                         else -> when {
-                            notNull(mainView).left < getHalfwayLeftViewPosition() -> close(true, 0)
-                            else -> open(true, 0)
+                            notNull(mainView).left < getHalfwayVerticalViewPosition() -> close(true)
+                            else -> open(true)
                         }
                     }
                 }
@@ -227,24 +234,27 @@ class DragLayout constructor(
         }
     }
 
-    private fun notNull(view: View?): View = view!!
-
-    private fun getHalfwayRightViewPosition(): Int {
-        return rectClose.right - (notNull(secondaryView).width / 2)
+    private fun getHalfwayVerticalViewPosition(): Int {
+        return when (dragEdge) {
+            DragEdge.Left -> rectClose.left + (notNull(secondaryView).width / 2)
+            DragEdge.Right -> rectClose.right - (notNull(secondaryView).width / 2)
+            else -> 0
+        }
     }
 
-    private fun getHalfwayLeftViewPosition(): Int {
-        return rectClose.left + (notNull(secondaryView).width / 2)
-    }
-
-    fun open(animate: Boolean, direction: Int = 0) {
+    fun open(animate: Boolean) {
         if (animate) {
-            dragHelper.smoothSlideViewTo(notNull(mainView), rectOpenFromRight.left, rectOpenFromRight.top)
+            val rect = when (dragEdge) {
+                DragEdge.Left -> rectOpenLeftEdge
+                DragEdge.Right -> rectOpenRightEdge
+                DragEdge.Side -> rectClose
+            }
+            dragHelper.smoothSlideViewTo(notNull(mainView), rect.left, rect.top)
             ViewCompat.postInvalidateOnAnimation(this)
         }
     }
 
-    fun close(animate: Boolean, direction: Int = 0) {
+    fun close(animate: Boolean) {
         if (animate) {
             dragHelper.smoothSlideViewTo(notNull(mainView), rectClose.left, rectClose.top)
             ViewCompat.postInvalidateOnAnimation(this)
@@ -254,4 +264,6 @@ class DragLayout constructor(
     private fun pxToDp(px: Int): Int {
         return (px / (context.resources.displayMetrics.densityDpi / DisplayMetrics.DENSITY_DEFAULT))
     }
+
+    private fun notNull(view: View?): View = view!!
 }

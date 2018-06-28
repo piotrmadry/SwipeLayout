@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:gravity="center_horizontal"
     android:orientation="vertical"
     tools:context=".MainActivity">
@@ -12,8 +12,8 @@
         android:id="@+id/drag_layout"
         android:layout_width="match_parent"
         android:layout_height="100dp"
-        app:dragEdge="left"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        app:dragEdge="left">
 
         <FrameLayout
             android:layout_width="250dp"
@@ -28,7 +28,6 @@
             android:background="@android:color/black" />
 
     </com.appunite.swipelib.widget.DragLayout>
-
 
     <Button
         android:id="@+id/button"
