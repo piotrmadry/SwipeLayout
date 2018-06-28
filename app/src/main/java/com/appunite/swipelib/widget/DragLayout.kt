@@ -5,7 +5,7 @@ import android.graphics.Rect
 import android.support.v4.view.ViewCompat
 import android.support.v4.widget.ViewDragHelper
 import android.util.AttributeSet
-import android.util.DisplayMetrics
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -18,7 +18,7 @@ class DragLayout constructor(
 ) : ViewGroup(context, attrs) {
 
     companion object {
-        private const val MIN_FLING_VELOCITY = 300
+        private const val MIN_FLING_VELOCITY = 5
     }
 
     private var dragEdge: DragEdge = DragEdge.Left
@@ -30,6 +30,8 @@ class DragLayout constructor(
     private var rectOpenLeftEdge = Rect()
     private var rectOpenRightEdge = Rect()
     private var rectClose = Rect()
+
+    private var isOpen: Boolean = false
 
     init {
         val typedArrayAttrs = context.theme.obtainStyledAttributes(attrs, R.styleable.DragLayout, 0, 0)
@@ -56,8 +58,8 @@ class DragLayout constructor(
                     throw RuntimeException("DragEdge: $dragEdge needs at least 3 child views")
                 }
                 secondaryView = getChildAt(0)
-                mainView = getChildAt(1)
-                quadraryView = getChildAt(2)
+                quadraryView = getChildAt(1)
+                mainView = getChildAt(2)
             }
         }
     }
@@ -141,8 +143,8 @@ class DragLayout constructor(
             }
             DragEdge.Side -> {
                 getChildAt(0).layoutView(paddingLeft, paddingTop)
-                getChildAt(1).layoutView(paddingLeft, paddingTop)
-                getChildAt(2).layoutView(right - getChildAt(2).getMeasuredMarginsWidth() - paddingRight - left, paddingTop)
+                getChildAt(1).layoutView(right - getChildAt(1).getMeasuredMarginsWidth() - paddingRight - left, paddingTop)
+                getChildAt(2).layoutView(paddingLeft, paddingTop)
             }
         }
         storePositionsInRects()
@@ -152,12 +154,8 @@ class DragLayout constructor(
         rectClose = Rect(notNull(mainView).left, notNull(mainView).top, notNull(mainView).right, notNull(mainView).bottom)
         rectOpenLeftEdge = Rect(rectClose.left + notNull(secondaryView).width, rectClose.top, rectClose.right + notNull(secondaryView).width, rectClose.bottom)
         rectOpenRightEdge = when (dragEdge) {
-            DragEdge.Side -> {
-                Rect(rectClose.left - notNull(quadraryView).width, rectClose.top, rectClose.right - notNull(quadraryView).width, rectClose.bottom)
-            }
-            else -> {
-                Rect(rectClose.left - notNull(secondaryView).width, rectClose.top, rectClose.right - notNull(secondaryView).width, rectClose.bottom)
-            }
+            DragEdge.Side -> Rect(rectClose.left - notNull(quadraryView).width, rectClose.top, rectClose.right - notNull(quadraryView).width, rectClose.bottom)
+            else -> Rect(rectClose.left - notNull(secondaryView).width, rectClose.top, rectClose.right - notNull(secondaryView).width, rectClose.bottom)
         }
     }
 
@@ -170,12 +168,12 @@ class DragLayout constructor(
             val leftBound = when (dragEdge) {
                 DragEdge.Left -> 0
                 DragEdge.Right -> -notNull(secondaryView).width
-                DragEdge.Side -> -notNull(secondaryView).width
+                DragEdge.Side -> -notNull(quadraryView).width
             }
             val rightBound = when (dragEdge) {
                 DragEdge.Left -> notNull(secondaryView).width
                 DragEdge.Right -> 0
-                DragEdge.Side -> notNull(quadraryView).width
+                DragEdge.Side -> notNull(secondaryView).width
             }
             return Math.min(Math.max(left, leftBound), rightBound)
         }
@@ -187,6 +185,7 @@ class DragLayout constructor(
         override fun onViewReleased(releasedChild: View, xvel: Float, yvel: Float) {
             super.onViewReleased(releasedChild, xvel, yvel)
 
+            Log.d("dupa", "VEL R: ${pxToDp(xvel.toInt())}")
             val velocityRightExceeded = pxToDp(xvel.toInt()) >= MIN_FLING_VELOCITY
             val velocityLeftExceeded = pxToDp(xvel.toInt()) <= -MIN_FLING_VELOCITY
 
@@ -212,6 +211,22 @@ class DragLayout constructor(
                     }
                 }
                 DragEdge.Side -> {
+                    when {
+                        velocityRightExceeded -> when {
+                            isOpen -> close(true)
+                            else -> open(true, Expose.Left)
+                        }
+                        velocityLeftExceeded -> when {
+                            isOpen -> close(true)
+                            else -> open(true, Expose.Right)
+                        }
+                        else -> when {
+                            notNull(mainView).left > 0 && notNull(mainView).left < getHalfwaySideVerticalViewPosition(notNull(secondaryView), Expose.Left) -> close(true)
+                            notNull(mainView).right < notNull(quadraryView).right && notNull(mainView).right > getHalfwaySideVerticalViewPosition(notNull(quadraryView), Expose.Right) -> close(true)
+                            notNull(mainView).left > getHalfwaySideVerticalViewPosition(notNull(secondaryView), Expose.Left) && notNull(mainView).left < notNull(quadraryView).left -> open(true, Expose.Left)
+                            notNull(mainView).right < getHalfwaySideVerticalViewPosition(notNull(quadraryView), Expose.Right) && notNull(mainView).right > notNull(secondaryView).right -> open(true, Expose.Right)
+                        }
+                    }
                 }
             }
         }
@@ -242,16 +257,27 @@ class DragLayout constructor(
         }
     }
 
-    fun open(animate: Boolean) {
+    private fun getHalfwaySideVerticalViewPosition(view: View, exposeSide: Expose): Int {
+        return when (exposeSide) {
+            Expose.Left -> rectClose.left + (notNull(view).width / 2)
+            Expose.Right -> rectClose.right - (notNull(view).width / 2)
+        }
+    }
+
+    fun open(animate: Boolean, exposeSide: Expose = Expose.Right) {
         if (animate) {
             val rect = when (dragEdge) {
                 DragEdge.Left -> rectOpenLeftEdge
                 DragEdge.Right -> rectOpenRightEdge
-                DragEdge.Side -> rectClose
+                DragEdge.Side -> when (exposeSide) {
+                    Expose.Left -> rectOpenLeftEdge
+                    Expose.Right -> rectOpenRightEdge
+                }
             }
             dragHelper.smoothSlideViewTo(notNull(mainView), rect.left, rect.top)
             ViewCompat.postInvalidateOnAnimation(this)
         }
+        isOpen = true
     }
 
     fun close(animate: Boolean) {
@@ -259,10 +285,11 @@ class DragLayout constructor(
             dragHelper.smoothSlideViewTo(notNull(mainView), rectClose.left, rectClose.top)
             ViewCompat.postInvalidateOnAnimation(this)
         }
+        isOpen = false
     }
 
     private fun pxToDp(px: Int): Int {
-        return (px / (context.resources.displayMetrics.densityDpi / DisplayMetrics.DENSITY_DEFAULT))
+        return (px / (context.resources.displayMetrics.densityDpi))
     }
 
     private fun notNull(view: View?): View = view!!
