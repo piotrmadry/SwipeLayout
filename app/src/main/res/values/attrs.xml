@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="DragLayout">
+        <attr name="dragEdge">
+            <flag name="right" value="0" />
+            <flag name="left" value="1" />
+            <flag name="side" value="2" />
+        </attr>
+    </declare-styleable>
+</resources>
